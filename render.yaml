@@ -3,19 +3,27 @@ services:
     name: mapmywaste
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn run:app
+    startCommand: gunicorn run:app --bind 0.0.0.0:$PORT
+    healthCheckPath: /health
     envVars:
-      - key: DATABASE_URL
-        fromDatabase:
-          name: mapmywaste-db
-          property: connectionString
-      - key: SECRET_KEY
-        generateValue: true
       - key: FLASK_APP
         value: run.py
       - key: PYTHON_VERSION
         value: 3.10.12
-
-databases:
-  - name: mapmywaste-db
-    plan: free
+      - key: ENVIRONMENT
+        value: production
+      - key: SUPABASE_BUCKET
+        value: waste-images
+      # The following are managed manually in the Render dashboard (secrets /
+      # connection strings) — this file documents that they exist but does not
+      # set or overwrite their values.
+      - key: DATABASE_URL
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: ADMIN_INITIAL_PASSWORD
+        sync: false

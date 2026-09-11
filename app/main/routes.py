@@ -7,6 +7,7 @@ from app import db
 from app.services.exif_utils import extract_gps_from_image
 from app.services.detector import predict, image_md5
 from app.services.gamification import update_user_achievements
+from app.services import storage
 from config import Config
 import os
 import random
@@ -54,7 +55,8 @@ def upload():
         os.makedirs(upload_dir, exist_ok=True)
         upload_path = os.path.join(upload_dir, filename)
         file.save(upload_path)
-        
+        storage.upload_file(upload_path, filename)
+
         # Get form data
         description = request.form.get('description', '').strip()
         latitude = request.form.get('latitude', type=float)
@@ -192,9 +194,18 @@ def contact():
 
 @bp.route('/uploads/<filename>')
 def uploaded_file(filename):
-    """Serve uploaded images"""
+    """Serve uploaded images: redirect to Supabase Storage when configured
+    (Render Free's local disk is ephemeral), else serve from local disk."""
+    if storage.is_configured():
+        return redirect(storage.get_public_url(filename))
     upload_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), Config.UPLOAD_FOLDER)
     return send_from_directory(upload_dir, filename)
+
+
+@bp.route('/health')
+def health():
+    """Lightweight health check for Render — no auth, no DB access."""
+    return {'status': 'ok'}, 200
 
 @bp.route('/images/<filename>')
 def images(filename):

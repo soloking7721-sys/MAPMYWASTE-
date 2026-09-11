@@ -1,3 +1,4 @@
+import os
 from flask import render_template, redirect, url_for, flash, jsonify, abort, request
 from flask_login import login_required, current_user
 from functools import wraps
@@ -153,18 +154,22 @@ def clear_reports():
         # Ensure admin user exists (after commit, in case admin was deleted)
         admin = User.query.filter_by(email='admin@mapmywaste.com').first()
         if not admin:
-            admin = User(
-                name='Admin',
-                email='admin@mapmywaste.com',
-                role='admin',
-                points=0,
-                reports_count=0,
-                tasks_completed=0,
-                badges='[]'
-            )
-            admin.set_password('admin123')
-            db.session.add(admin)
-            db.session.commit()
+            initial_password = os.environ.get('ADMIN_INITIAL_PASSWORD')
+            if initial_password:
+                admin = User(
+                    name='Admin',
+                    email='admin@mapmywaste.com',
+                    role='admin',
+                    points=0,
+                    reports_count=0,
+                    tasks_completed=0,
+                    badges='[]'
+                )
+                admin.set_password(initial_password)
+                db.session.add(admin)
+                db.session.commit()
+            else:
+                flash('ADMIN_INITIAL_PASSWORD not set — admin user was not recreated.', 'warning')
 
         # Calculate deleted counts
         deleted_reports = initial_report_count
