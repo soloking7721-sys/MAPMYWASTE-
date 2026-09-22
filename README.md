@@ -1,24 +1,24 @@
 # MapMyWaste
 
-A Flask web application for community-driven waste reporting: residents photograph and geotag waste dumping sites, admins review and cluster reports to plan efficient collection routes, and a lightweight fleet-management layer tracks trucks, drivers, and routes.
+A Flask web application for community-driven waste reporting: residents photograph and geotag waste dumping sites, and admins review reports on a live map.
 
 ## Problem Statement
 
-Urban waste collection is often reactive rather than data-driven: municipal teams lack a simple channel for citizens to report waste hotspots with accurate locations, and collection routes are planned without visibility into where reports actually cluster. This leads to missed pickups, inefficient truck routing, and no feedback loop between residents and the collection authority.
+Urban waste collection is often reactive rather than data-driven: municipal teams lack a simple channel for citizens to report waste hotspots with accurate locations, and there's no feedback loop between residents and the collection authority.
 
 ## Project Objectives
 
 - Give residents a low-friction way to report waste (photo + location) and see the impact of their reports (points, badges, leaderboard).
-- Give administrators a live view of reported waste locations, grouped into clusters to prioritize collection routes.
-- Provide basic fleet-management tooling (trucks, drivers, routes, assignments) so admins can plan and record collection runs.
+- Give administrators a live view of reported waste locations on a map.
 - Deploy the system as a real, persistent, publicly reachable web application rather than a local-only prototype.
 
 ## Features
 
 - User registration/login (Flask-Login), role-based access (user/admin)
 - Waste report submission: photo upload, GPS from EXIF metadata / browser geolocation / manual entry, duplicate detection (image hash + filename)
+- Reverse geocoding of report coordinates into a human-readable location label (OSM Nominatim)
 - Gamification: points, badges, public leaderboard
-- Admin dashboard: report review, KMeans clustering of report locations, fleet management (trucks, drivers, routes, assignments), route optimization view
+- Admin dashboard: report review, live map of all reported locations, sort by waste score, report cleanup tools
 - Public leaderboard and contact form
 
 ## Tech Stack
@@ -26,7 +26,7 @@ Urban waste collection is often reactive rather than data-driven: municipal team
 - **Backend**: Python 3.10, Flask 2.3, Flask-SQLAlchemy, Flask-Login, Werkzeug
 - **Database**: PostgreSQL via Supabase (production), SQLite (local dev fallback)
 - **Storage**: Supabase Storage (REST API, publishable/anon key) for user-uploaded photos
-- **Data/ML utilities**: scikit-learn (KMeans clustering of report locations), Pillow (EXIF GPS extraction), numpy
+- **Data/ML utilities**: Pillow (EXIF GPS extraction), numpy (waste-score detector)
 - **Frontend**: Jinja2 templates, Bootstrap and Leaflet.js (via CDN)
 - **Server**: gunicorn (production WSGI server)
 - **Hosting**: Render (Free web service tier)
@@ -58,11 +58,11 @@ Static app assets (CSS/JS, marketing images in `images/`) are served directly by
 ```
 app/
   __init__.py          # app factory
-  models.py            # SQLAlchemy models (User, WasteReport, Driver, Truck, Route, Assignment, ...)
+  models.py            # SQLAlchemy models (User, WasteReport, ContactMessage)
   auth/                 # login / register / logout
   main/                 # core routes: upload, dashboard, leaderboard, /health
-  admin/                # admin dashboard, clustering, fleet management
-  services/             # detector, exif, clustering, gamification, storage
+  admin/                # admin dashboard, report map
+  services/             # detector, exif, geocoding, gamification, storage
   static/                # CSS / JS
   templates/
 config.py               # environment-driven configuration
@@ -109,6 +109,7 @@ The app runs at `http://localhost:5000`.
 | `SUPABASE_PUBLISHABLE_KEY` | Yes (for image persistence) | Supabase anon/publishable API key — never the service-role key |
 | `SUPABASE_BUCKET` | No (defaults to `waste-images`) | Storage bucket name |
 | `ADMIN_INITIAL_PASSWORD` | Recommended | Password for the auto-created `admin@mapmywaste.com` account on first boot |
+| `GEOCODING_CONTACT_EMAIL` | No (defaults to a placeholder) | Contact address sent in the `User-Agent` header for reverse-geocoding requests to OSM Nominatim, per its usage policy |
 
 Never commit real values — see `example.env` for names only.
 
@@ -158,8 +159,9 @@ User-uploaded waste-report photos are the only data that needs special handling 
 
 - `python -c "from app import create_app; create_app()"` — smoke-tests that the app factory imports and initializes without errors; this is the same check GitHub Actions runs in CI.
 - `testing_files/test_integration.py` — a manual (non-pytest) script that exercises the detector/hashing service and waste-report creation, including duplicate-detection logic.
+- `testing_files/cleanup_sample_data.py` — a manual, dry-run-by-default maintenance script for removing leftover demo/sample rows (identified by the `@example.com` email domain and `sample_` filename prefix). Never runs automatically; requires `CONFIRM=yes` to actually delete.
 - `scripts/` contains development utilities for inspecting the database (`check_db.py`, `print_db_location.py`) and a legacy SQLite-only schema patcher (`ensure_schema.py`), kept for reference.
-- There is currently no automated pytest suite covering routes, authentication, or clustering — this is a known gap, listed under Future Scope.
+- There is currently no automated pytest suite covering routes or authentication — this is a known gap, listed under Future Scope.
 - Note: the waste-detection "AI score" (`app/services/detector.py`) is currently a stub that returns a randomized score for demonstration purposes; the committed model weights in `model/` are not yet wired into an inference path.
 
 ## Security
@@ -187,13 +189,13 @@ User-uploaded waste-report photos are the only data that needs special handling 
 - **GitHub Actions failure**: check the `validate` job logs — usually a dependency or import error.
 - **Render deployment doesn't trigger after a push**: confirm `RENDER_DEPLOY_HOOK_URL` is set as a repository secret.
 - **Health check failing on Render**: confirm the Start Command binds `$PORT` (`gunicorn run:app --bind 0.0.0.0:$PORT`) and matches what's configured in the Render dashboard.
+- **Report shows "Location unavailable" instead of a place name**: reverse geocoding (via the public OSM Nominatim API, see `app/services/geocoding.py`) failed for that request — network error, timeout, or rate limiting. The report's exact coordinates are always preserved regardless; only the human-readable label is affected. This is best-effort and does not require a key or paid tier.
 
 ## Future Scope
 
 - Wire up a real image-classification model for waste scoring (replacing the current stub in `app/services/detector.py`).
-- Add an automated pytest suite covering authentication, report submission, and clustering.
+- Add an automated pytest suite covering authentication and report submission.
 - Add CSRF protection and rate-limiting on authentication/report forms.
-- Support multi-city depot configuration instead of the current fixed Chennai depot coordinates.
 - Add signed/expiring URLs for Supabase Storage objects if reports need to become private in the future.
 
 ## Maintainer

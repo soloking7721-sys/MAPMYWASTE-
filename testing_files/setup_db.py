@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from app import create_app, db
 # Import all models to register them with SQLAlchemy
-from app.models import User, WasteReport, ContactMessage, Driver, Truck, Route, Assignment
+from app.models import User, WasteReport, ContactMessage
 
 # Create app
 app = create_app()

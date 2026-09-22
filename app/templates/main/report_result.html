@@ -201,7 +201,7 @@
                                     <td><strong><i class="bi bi-geo-alt"></i> Location:</strong></td>
                                     <td>
                                         {{ report.latitude|round(6) }}, {{ report.longitude|round(6) }}<br>
-                                        <small class="text-muted">{{ sample_address }}</small>
+                                        <small class="text-muted">{{ report.address if report.address else "Location unavailable" }}</small>
                                     </td>
                                 </tr>
                                 <tr>
@@ -210,14 +210,6 @@
                                         <span class="badge bg-info">{{ report.location_source }}</span>
                                     </td>
                                 </tr>
-                                {% if report.cluster_id is not none %}
-                                <tr>
-                                    <td><strong><i class="bi bi-diagram-3"></i> Cluster:</strong></td>
-                                    <td>
-                                        <span class="badge bg-success">Cluster {{ report.cluster_id }}</span>
-                                    </td>
-                                </tr>
-                                {% endif %}
                                 <tr>
                                     <td><strong><i class="bi bi-file-text"></i> Description:</strong></td>
                                     <td>{{ report.description or 'No description provided' }}</td>
@@ -367,14 +359,14 @@
     
     // Add tile layer
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors'
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
-    
+
     // Add marker for the report location
     const marker = L.marker([{{ report.latitude }}, {{ report.longitude }}]).addTo(map);
     marker.bindPopup(`
         <strong>Waste Report Location</strong><br>
-        {{ sample_address }}<br>
+        {{ report.address if report.address else "Location unavailable" }}<br>
         <small>Submitted: {{ report.created_at.strftime('%B %d, %Y') }}</small>
     `).openPopup();
 </script>

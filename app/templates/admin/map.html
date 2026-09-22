@@ -10,7 +10,7 @@
         width: 100%;
         border-radius: 8px;
     }
-    .cluster-legend {
+    .map-legend {
         position: absolute;
         top: 10px;
         right: 10px;
@@ -19,6 +19,19 @@
         border-radius: 8px;
         box-shadow: 0 2px 8px rgba(0,0,0,0.2);
         z-index: 1000;
+    }
+    .map-empty-state {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        padding: 20px 30px;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        z-index: 1000;
+        text-align: center;
+        display: none;
     }
 </style>
 {% endblock %}
@@ -31,18 +44,17 @@
             <i class="bi bi-arrow-left"></i> Back to Dashboard
         </a>
     </div>
-    
+
     <div class="card border-0 shadow-lg">
-        <div class="card-body p-4">
+        <div class="card-body p-4" style="position: relative;">
             <div id="admin-map"></div>
-            <div class="cluster-legend">
-                <h6 class="mb-2">Chennai Waste Map</h6>
+            <div class="map-legend">
+                <h6 class="mb-2">Legend</h6>
                 <div><i class="bi bi-circle-fill text-primary"></i> Waste Reports</div>
-                <div><i class="bi bi-geo-alt-fill text-danger" style="font-size: 1.2rem;"></i> Cluster Centroids</div>
-                <hr class="my-2">
-                <small class="text-muted">
-                    {% if reports %}Real reports{% else %}Sample data for demo{% endif %}
-                </small>
+            </div>
+            <div class="map-empty-state" id="map-empty-state">
+                <i class="bi bi-inbox" style="font-size: 2rem; color: #ccc;"></i>
+                <p class="mb-0 mt-2 text-muted">No reports yet</p>
             </div>
         </div>
     </div>
@@ -52,53 +64,22 @@
 {% block extra_js %}
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    // Initialize map centered on Chennai
-    const map = L.map('admin-map').setView([13.0827, 80.2707], 11);
-    
+    // Initialize map with a Mumbai-area placeholder view; real markers/fitBounds take over below
+    const map = L.map('admin-map').setView([19.0760, 72.8777], 11);
+
     // Add tile layer
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors'
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
-    
-    // Color palette for clusters
-    const clusterColors = [
-        '#FF5733', '#33FF57', '#3357FF', '#FF33F5', '#F5FF33',
-        '#33FFF5', '#FF3333', '#33FF33', '#3333FF', '#FF33FF'
-    ];
-    
-    // Sample Chennai locations with clusters for demonstration
-    const sampleChennaiData = [
-        // Cluster 0: T. Nagar area
-        { lat: 13.0418, lng: 80.2341, cluster: 0, desc: 'Plastic waste near T. Nagar market', user: 'Arun Kumar', img: 'sample1.jpg' },
-        { lat: 13.0425, lng: 80.2328, cluster: 0, desc: 'Cardboard boxes accumulation', user: 'Priya Sharma', img: 'sample2.jpg' },
-        { lat: 13.0402, lng: 80.2355, cluster: 0, desc: 'Food waste from street vendors', user: 'Vijay Rajan', img: 'sample3.jpg' },
 
-        // Cluster 1: Adyar area
-        { lat: 13.0067, lng: 80.2577, cluster: 1, desc: 'Construction debris pile', user: 'Meera Patel', img: 'sample4.jpg' },
-        { lat: 13.0054, lng: 80.2563, cluster: 1, desc: 'Mixed household waste', user: 'Karthik Nair', img: 'sample5.jpg' },
-        { lat: 13.0089, lng: 80.2591, cluster: 1, desc: 'Plastic bags near river', user: 'Anjali Reddy', img: 'sample6.jpg' },
-
-        // Cluster 2: Velachery area
-        { lat: 12.9758, lng: 80.2207, cluster: 2, desc: 'Electronic waste dump', user: 'Suresh Babu', img: 'sample7.jpg' },
-        { lat: 12.9742, lng: 80.2221, cluster: 2, desc: 'Paper waste from offices', user: 'Divya Krishnan', img: 'sample8.jpg' },
-
-        // Cluster 3: Anna Nagar area
-        { lat: 13.0849, lng: 80.2102, cluster: 3, desc: 'Organic waste near park', user: 'Ravi Kumar', img: 'sample9.jpg' },
-        { lat: 13.0856, lng: 80.2087, cluster: 3, desc: 'Plastic bottles collection', user: 'Latha Mohan', img: 'sample10.jpg' },
-
-        // Cluster 4: Mylapore area
-        { lat: 13.0329, lng: 80.2685, cluster: 4, desc: 'Street litter accumulation', user: 'Ganesh Iyer', img: 'sample11.jpg' },
-        { lat: 13.0314, lng: 80.2698, cluster: 4, desc: 'Construction materials', user: 'Kavitha Raj', img: 'sample12.jpg' }
-    ];
-
-    // Reports data from template - convert to JSON-serializable format
-    let reportsData = [
+    // Reports data from template
+    const reportsData = [
         {% for report in reports %}
         {
             id: {{ report.id }},
             latitude: {{ report.latitude }},
             longitude: {{ report.longitude }},
-            cluster_id: {{ report.cluster_id if report.cluster_id is not none else 'null' }},
+            address: {{ (report.address if report.address else "Location unavailable") | tojson }},
             description: {{ (report.description or '') | tojson }},
             image_filename: {{ report.image_filename | tojson }},
             user_name: {{ report.user.name | tojson }},
@@ -108,113 +89,39 @@
         {% endfor %}
     ];
 
-    // If no real reports, use sample data
-    if (reportsData.length === 0) {
-        reportsData = sampleChennaiData.map((sample, index) => ({
-            id: index + 1,
-            latitude: sample.lat,
-            longitude: sample.lng,
-            cluster_id: sample.cluster,
-            description: sample.desc,
-            image_filename: sample.img,
-            user_name: sample.user,
-            created_at: new Date().toISOString(),
-            location_source: 'Sample Data'
-        }));
-    }
-    let centroids = {{ centroids | tojson }};
-    const depotLat = {{ depot_lat }};
-    const depotLon = {{ depot_lon }};
-
-    // If no real centroids but we have sample data, calculate sample centroids
-    if (centroids.length === 0 && reportsData.length > 0) {
-        const clusterGroups = {};
-        reportsData.forEach(report => {
-            if (!clusterGroups[report.cluster_id]) {
-                clusterGroups[report.cluster_id] = [];
-            }
-            clusterGroups[report.cluster_id].push(report);
-        });
-
-        centroids = Object.keys(clusterGroups).map(clusterId => {
-            const reports = clusterGroups[clusterId];
-            const avgLat = reports.reduce((sum, r) => sum + r.latitude, 0) / reports.length;
-            const avgLng = reports.reduce((sum, r) => sum + r.longitude, 0) / reports.length;
-            return {
-                cluster_id: parseInt(clusterId),
-                latitude: avgLat,
-                longitude: avgLng,
-                count: reports.length
-            };
-        });
-    }
-    
     // Add report markers
-    const reportMarkers = {};
+    const reportMarkers = [];
     reportsData.forEach(report => {
-        const color = report.cluster_id !== null && report.cluster_id < clusterColors.length 
-            ? clusterColors[report.cluster_id] 
-            : '#666';
-        
         const marker = L.circleMarker([report.latitude, report.longitude], {
             radius: 6,
-            fillColor: color,
+            fillColor: '#0d6efd',
             color: '#fff',
             weight: 2,
             opacity: 1,
             fillOpacity: 0.8
         }).addTo(map);
-        
+
         const popupContent = `
             <div style="max-width: 250px;">
-                <img src="/uploads/${report.image_filename}" 
+                <img src="/uploads/${report.image_filename}"
                      style="width: 100%; height: 150px; object-fit: cover; border-radius: 4px; margin-bottom: 8px;">
                 <strong>User:</strong> ${report.user_name}<br>
+                <strong>Location:</strong> ${report.address}<br>
                 <strong>Description:</strong> ${report.description || 'No description'}<br>
-                <strong>Cluster:</strong> ${report.cluster_id !== null ? report.cluster_id : 'Not clustered'}<br>
                 <strong>Date:</strong> ${new Date(report.created_at).toLocaleString()}<br>
                 <strong>Source:</strong> ${report.location_source}
             </div>
         `;
         marker.bindPopup(popupContent);
-        
-        if (!reportMarkers[report.cluster_id]) {
-            reportMarkers[report.cluster_id] = [];
-        }
-        reportMarkers[report.cluster_id].push(marker);
+        reportMarkers.push(marker);
     });
-    
-    // Add centroid markers
-    centroids.forEach(centroid => {
-        const icon = L.divIcon({
-            className: 'centroid-icon',
-            html: `<i class="bi bi-geo-alt-fill" style="color: red; font-size: 24px;"></i>`,
-            iconSize: [24, 24],
-            iconAnchor: [12, 24]
-        });
-        
-        const marker = L.marker([centroid.latitude, centroid.longitude], { icon: icon }).addTo(map);
-        
-        const routeUrl = `https://www.google.com/maps/dir/${depotLat},${depotLon}/${centroid.latitude},${centroid.longitude}`;
-        
-        const popupContent = `
-            <div>
-                <strong>Cluster ${centroid.cluster_id}</strong><br>
-                <strong>Reports:</strong> ${centroid.count}<br>
-                <strong>Location:</strong> ${centroid.latitude.toFixed(6)}, ${centroid.longitude.toFixed(6)}<br>
-                <a href="${routeUrl}" target="_blank" class="btn btn-sm btn-primary mt-2">
-                    <i class="bi bi-map"></i> Get Route from Depot
-                </a>
-            </div>
-        `;
-        marker.bindPopup(popupContent);
-    });
-    
-    // Fit map to show all markers
+
+    // Fit map to show all markers, or show an empty state when there are none
     if (reportsData.length > 0) {
-        const group = new L.featureGroup(Object.values(reportMarkers).flat());
+        const group = new L.featureGroup(reportMarkers);
         map.fitBounds(group.getBounds().pad(0.1));
+    } else {
+        document.getElementById('map-empty-state').style.display = 'block';
     }
 </script>
 {% endblock %}
-

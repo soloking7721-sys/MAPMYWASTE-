@@ -45,21 +45,13 @@ class Config:
     SUPABASE_PUBLISHABLE_KEY = os.environ.get('SUPABASE_PUBLISHABLE_KEY')
     SUPABASE_BUCKET = os.environ.get('SUPABASE_BUCKET', 'waste-images')
     
-    # Clustering settings
-    DEFAULT_CLUSTERS = 5 
-    MIN_REPORTS_PER_CLUSTER = 10
-    
     # Gamification settings
     POINTS_PER_REPORT = 10
     BONUS_POINTS_FIRST_REPORT = 20
     BONUS_POINTS_5_REPORTS = 50
     BONUS_POINTS_20_REPORTS = 100
-    
+
     # Badge thresholds
     BADGE_ROOKIE_REPORTER = 1
     BADGE_NEIGHBORHOOD_WATCHER = 5
     BADGE_WASTE_WARRIOR = 20
-    
-    # Admin depot location for route links
-    DEPOT_LAT = 13.0827  # Chennai depot coordinates
-    DEPOT_LON = 80.2707

@@ -8,7 +8,7 @@
     
     <!-- Stats Cards -->
     <div class="row g-4 mb-4">
-        <div class="col-md-4">
+        <div class="col-md-6">
             <div class="card border-0 shadow-sm bg-primary text-white">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
@@ -21,7 +21,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-6">
             <div class="card border-0 shadow-sm bg-success text-white">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
@@ -30,19 +30,6 @@
                             <h2 class="mb-0">{{ total_users }}</h2>
                         </div>
                         <i class="bi bi-people-fill" style="font-size: 3rem; opacity: 0.5;"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="card border-0 shadow-sm bg-info text-white">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h6 class="text-white-50 mb-1">Clusters</h6>
-                            <h2 class="mb-0">{{ cluster_count }}</h2>
-                        </div>
-                        <i class="bi bi-diagram-3-fill" style="font-size: 3rem; opacity: 0.5;"></i>
                     </div>
                 </div>
             </div>
@@ -57,31 +44,12 @@
                 <div class="card-body">
                     <h5 class="card-title">Actions</h5>
                     <div class="d-flex gap-2 flex-nowrap overflow-auto">
-                        <form method="POST" action="{{ url_for('admin.cluster') }}" class="d-inline">
-                            <button type="submit" class="btn btn-primary">
-                                <i class="bi bi-diagram-3"></i> Run Clustering
-                            </button>
-                        </form>
-                        <form method="POST" action="{{ url_for('admin.cluster') }}" class="d-inline">
-                            <input type="hidden" name="k" value="5">
-                            <button type="submit" class="btn btn-outline-primary">
-                                <i class="bi bi-diagram-3"></i> Cluster (k=5)
-                            </button>
-                        </form>
                         <a href="{{ url_for('admin.map') }}" class="btn btn-success">
                             <i class="bi bi-map"></i> View Map
-                        </a>
-                        <a href="{{ url_for('admin.truck_assignments') }}" class="btn btn-info">
-                            <i class="bi bi-truck"></i> Truck Assignments
                         </a>
                         <a href="{{ url_for('admin.dashboard', sort='score') }}" class="btn btn-success" {% if is_sorted_by_score %}style="font-weight: bold; box-shadow: 0 0 10px rgba(40, 167, 69, 0.5);"{% endif %}>
                             <i class="bi bi-sort-down"></i> Prioritize by Score
                         </a>
-                        <form method="POST" action="{{ url_for('admin.seed_data') }}" class="d-inline" onsubmit="return confirm('This will create sample data. Continue?');">
-                            <button type="submit" class="btn btn-warning">
-                                <i class="bi bi-database-add"></i> Generate Sample Data
-                            </button>
-                        </form>
                         <form method="POST" action="{{ url_for('admin.clear_recent_reports') }}" class="d-inline" onsubmit="return confirm('Are you sure you want to delete all reports from the last 24 hours? This will update user stats accordingly.');">
                             <button type="submit" class="btn btn-warning">
                                 <i class="bi bi-clock-history"></i> Clear Recent Reports (24h)
@@ -126,7 +94,6 @@
                             <th>Coordinates</th>
                             <th>Waste Score</th>
                             <th>Spam</th>
-                            <th>Cluster</th>
                             <th>Date</th>
                         </tr>
                     </thead>
@@ -151,13 +118,6 @@
                             <td>
                                 {% if report.is_spam %}
                                     <span class="badge bg-danger">Yes</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if report.cluster_id is not none %}
-                                    <span class="badge bg-info">Cluster {{ report.cluster_id }}</span>
-                                {% else %}
-                                    <span class="badge bg-secondary">Not clustered</span>
                                 {% endif %}
                             </td>
                             <td>{{ report.created_at.strftime('%Y-%m-%d %H:%M') }}</td>

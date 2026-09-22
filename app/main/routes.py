@@ -7,10 +7,10 @@ from app import db
 from app.services.exif_utils import extract_gps_from_image
 from app.services.detector import predict, image_md5
 from app.services.gamification import update_user_achievements
+from app.services.geocoding import reverse_geocode
 from app.services import storage
 from config import Config
 import os
-import random
 from datetime import datetime
 
 def allowed_file(filename):
@@ -70,13 +70,14 @@ def upload():
             longitude = lon_exif
             location_source = 'EXIF'
         elif latitude is None or longitude is None:
-            # Default to Chennai depot coords when no coordinates provided
-            latitude = Config.DEPOT_LAT
-            longitude = Config.DEPOT_LON
-            location_source = 'DEFAULT_CHENNAI'
+            flash('Location is required — enable GPS or enter coordinates manually.', 'error')
+            return redirect(url_for('main.upload'))
         else:
             location_source = 'BROWSER'
-        
+
+        # Reverse geocode the exact report coordinates once, at creation time
+        address = reverse_geocode(latitude, longitude)
+
         # Compute image hash and run detector
         image_path = upload_path
         img_hash = image_md5(image_path)
@@ -115,7 +116,8 @@ def upload():
             description=description,
             latitude=latitude,
             longitude=longitude,
-            location_source=location_source
+            location_source=location_source,
+            address=address
         )
         db.session.add(report)
         
@@ -224,32 +226,14 @@ def report_result(report_id):
         flash('Access denied.', 'error')
         return redirect(url_for('main.dashboard'))
     
-    # Sample Tamil Nadu addresses for display
-    tamil_nadu_addresses = [
-        "Anna Nagar, Chennai, Tamil Nadu 600040",
-        "T. Nagar, Chennai, Tamil Nadu 600017",
-        "Adyar, Chennai, Tamil Nadu 600020",
-        "Velachery, Chennai, Tamil Nadu 600042",
-        "Porur, Chennai, Tamil Nadu 600116",
-        "Tambaram, Chennai, Tamil Nadu 600045",
-        "Coimbatore, Tamil Nadu 641001",
-        "Madurai, Tamil Nadu 625001",
-        "Trichy, Tamil Nadu 620001",
-        "Salem, Tamil Nadu 636001"
-    ]
-    
-    # Generate a sample address based on coordinates (for demo)
-    sample_address = random.choice(tamil_nadu_addresses)
-    
     # Get newly earned badges from session
     from flask import session
     newly_earned_badges = session.pop('newly_earned_badges', [])
     is_duplicate = session.pop('is_duplicate', False)
     duplicate_type = session.pop('duplicate_type', None)
     
-    return render_template('main/report_result.html', 
-                         report=report, 
-                         sample_address=sample_address,
+    return render_template('main/report_result.html',
+                         report=report,
                          badges=newly_earned_badges,
                          is_duplicate=is_duplicate,
                          duplicate_type=duplicate_type)

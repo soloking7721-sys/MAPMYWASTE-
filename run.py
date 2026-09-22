@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from app import create_app, db
-from app.models import User, Driver, Truck, Route, Assignment
+from app.models import User
 app = create_app()
 with app.app_context():
     db.create_all()

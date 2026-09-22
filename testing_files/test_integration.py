@@ -20,7 +20,7 @@ with app.app_context():
             email='admin@mapmywaste.com',
             role='admin'
         )
-        admin.set_password(os.environ.get('ADMIN_INITIAL_PASSWORD', 'local-test-only-not-admin123'))
+        admin.set_password(os.environ.get('ADMIN_INITIAL_PASSWORD', 'test-only-fixture-pw-8f2c'))
         db.session.add(admin)
         db.session.commit()
         print("✓ Created admin user")
