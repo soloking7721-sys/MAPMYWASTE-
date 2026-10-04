@@ -15,6 +15,11 @@ import requests
 NOMINATIM_URL = 'https://nominatim.openstreetmap.org/reverse'
 USER_AGENT = f"MapMyWaste/1.0 (contact: {os.environ.get('GEOCODING_CONTACT_EMAIL', 'crudreview@datadrone.biz')})"
 
+BIGDATACLOUD_URL = 'https://api.bigdatacloud.net/data/reverse-geocode-client'
+_TIMEOUT = 8
+_NOMINATIM_ATTEMPTS = 2
+_RETRY_BACKOFF = 1.5
+
 _last_request_time = 0.0
 _MIN_REQUEST_INTERVAL = 1.0  # Nominatim public API: max 1 request/second
 
@@ -47,30 +52,64 @@ def _compose_label(address_parts):
     return ', '.join(parts) if parts else None
 
 
-def reverse_geocode(lat, lon):
-    """Return a short human-readable location label for the exact (lat, lon), or
-    None on any failure. Never raises, never returns a hardcoded/sample address."""
-    if lat is None or lon is None:
-        return None
+def _nominatim_lookup(lat, lon):
+    """One Nominatim request. Returns a label, or None on any failure."""
     try:
         _throttle()
         response = requests.get(
             NOMINATIM_URL,
             params={'format': 'jsonv2', 'lat': lat, 'lon': lon, 'zoom': 14, 'addressdetails': 1},
             headers={'User-Agent': USER_AGENT},
-            timeout=5,
+            timeout=_TIMEOUT,
         )
         if response.status_code != 200:
+            print(f"Nominatim returned HTTP {response.status_code} for ({lat}, {lon})")
             return None
         data = response.json()
-        address_parts = data.get('address') or {}
-        label = _compose_label(address_parts)
+        label = _compose_label(data.get('address') or {})
         if label:
             return label
         display_name = data.get('display_name')
-        if display_name:
-            return display_name[:255]
-        return None
+        return display_name[:255] if display_name else None
     except Exception as e:
-        print(f"Reverse geocoding failed for ({lat}, {lon}): {e}")
+        print(f"Nominatim lookup failed for ({lat}, {lon}): {e}")
         return None
+
+
+def _bigdatacloud_lookup(lat, lon):
+    """Keyless fallback used when Nominatim is unreachable or rate-limiting us."""
+    try:
+        response = requests.get(
+            BIGDATACLOUD_URL,
+            params={'latitude': lat, 'longitude': lon, 'localityLanguage': 'en'},
+            headers={'User-Agent': USER_AGENT},
+            timeout=_TIMEOUT,
+        )
+        if response.status_code != 200:
+            print(f"BigDataCloud returned HTTP {response.status_code} for ({lat}, {lon})")
+            return None
+        data = response.json()
+        parts = [data.get('locality') or data.get('city'),
+                 data.get('principalSubdivision'),
+                 data.get('countryName')]
+        label = ', '.join(dict.fromkeys(p for p in parts if p))
+        return label[:255] if label else None
+    except Exception as e:
+        print(f"BigDataCloud lookup failed for ({lat}, {lon}): {e}")
+        return None
+
+
+def reverse_geocode(lat, lon):
+    """Return a short human-readable location label for the exact (lat, lon), or
+    None on any failure. Never raises, never returns a hardcoded/sample address.
+
+    Tries Nominatim (with one retry), then falls back to BigDataCloud."""
+    if lat is None or lon is None:
+        return None
+    for attempt in range(_NOMINATIM_ATTEMPTS):
+        label = _nominatim_lookup(lat, lon)
+        if label:
+            return label
+        if attempt < _NOMINATIM_ATTEMPTS - 1:
+            time.sleep(_RETRY_BACKOFF)
+    return _bigdatacloud_lookup(lat, lon)

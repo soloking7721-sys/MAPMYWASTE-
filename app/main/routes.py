@@ -226,6 +226,17 @@ def report_result(report_id):
         flash('Access denied.', 'error')
         return redirect(url_for('main.dashboard'))
     
+    # Backfill a missing location label (earlier geocoding attempt failed); persisted once
+    if not report.address and report.latitude is not None and report.longitude is not None:
+        try:
+            address = reverse_geocode(report.latitude, report.longitude)
+            if address:
+                report.address = address
+                db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            print(f"Address backfill failed for report {report.id}: {e}")
+
     # Get newly earned badges from session
     from flask import session
     newly_earned_badges = session.pop('newly_earned_badges', [])
